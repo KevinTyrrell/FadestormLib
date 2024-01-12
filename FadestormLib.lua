@@ -613,7 +613,7 @@ function num_stream(start, stop, step)
 		-- Check for infinite loop scenarios, in both increasing/decreasing contexts
 		if (Type.NUMBER(start) - Type.NUMBER(stop)) / step > 0 then
 			Error.ILLEGAL_ARGUMENT(ADDON_NAME, "Number stream does not terminate: [", start, stop, step, "]") end
-	else if start < stop then step = 1 else step = -1 end
+	elseif start < stop then step = 1 else step = -1 end
 
 	return function() -- Simple iterator function
 		if start > stop then return nil end
