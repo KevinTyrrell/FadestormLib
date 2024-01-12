@@ -39,6 +39,7 @@ setfenv(1, env) -- Switch environment to FSL
 
 -- Imported standard library functions
 local upper, lower, format = string.upper, string.lower, string.format
+local concat = table.concat
 
 -- Utility functions
 local function SENTINEL() end -- Unique pointer
@@ -366,7 +367,7 @@ Error = (function()
 	local c_ret, c_prefix = "\124r", "\124cFF" -- \124 => '|', cFF => 100% Opacity
 	src_color, msg_color = c_prefix .. src_color, c_prefix .. msg_color
 
-	local values = { "UNSUPPORTED_OPERATION", "TYPE_MISMATCH", "NIL_POINTER", "s", "ILLEGAL_STATE" }
+	local values = { "UNSUPPORTED_OPERATION", "TYPE_MISMATCH", "NIL_POINTER", "ILLEGAL_ARGUMENT", "ILLEGAL_STATE" }
 	local formals =  { "Unsupported Operation", "Type Mismatch", "Nil Pointer", "Illegal Argument", "Illegal State" }
 	-- e.g. "[FadestormLib] Type Mismatch: Expected String, Received Number"
 	local ERROR_FMT = c_ret .. "[" .. src_color .. "%s" .. c_ret .. "] %s: " .. msg_color .. "%s" .. c_ret
@@ -375,8 +376,8 @@ Error = (function()
 		members.formal = formals[instance.ordinal]
 	end, {
 		__tostring = function(tbl) return tbl.formal end,
-		__call = function(tbl, source, msg)
-			msg = format(ERROR_FMT, Type.STRING(source), tbl.formal, Type.STRING(msg))
+		__call = function(tbl, source, ...)
+			msg = format(ERROR_FMT, Type.STRING(source), tbl.formal, concat({ ... }, " "))
 			print(msg) error(msg)
 		end
 	})
