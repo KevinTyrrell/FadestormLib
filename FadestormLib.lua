@@ -280,7 +280,7 @@ function Enum(values, callback, meta_methods)
 
 	function cls_members.assert_instance(tbl) -- Enum type-checking
 		if ro_to_reserved[Type.TABLE(tbl)] == nil then
-			Error.TYPE_MISMATCH(ADDON_NAME, "Table parameter is not an instance of the enum") end
+			Error.TYPE_MISMATCH(ADDON_NAME, "Table parameter is not an instance of the enum.") end
 		return tbl
 	end
 
@@ -320,7 +320,7 @@ Type = (function()
 			end, {
 				__call = function(tbl, value)
 					if tbl.type ~= type(value) then Error.TYPE_MISMATCH(ADDON_NAME,
-							"Received " .. type(value) .. ", Expected: " .. tbl.type) end
+							"Received: <", type(value),  "> Expected: <", tbl.type, ">") end
 					return value
 				end
 			})
@@ -335,7 +335,7 @@ Type = (function()
     ]]--
 	function members.non_nil(x)
 		if x == nil then
-			Error.NIL_POINTER(ADDON_NAME, "Required non-nil argument was nil") end
+			Error.NIL_POINTER(ADDON_NAME, "Required non-nil argument was nil.") end
 		return x
 	end
 
@@ -596,12 +596,10 @@ end
 --[[
 -- Constructs an iterable stream of numbers
 --
--- If no step is provided, step increment defaults to 1.
+-- If no step is provided, step increment defaults to 1/-1.
 -- For positive steps, start <= stop must be true.
 -- For negative steps, start >= stop must be true.
 -- Steps of zero will result in an exception being thrown.
---
--- TODO: Appears to fail on decrementing number streams
 --
 -- @param start [number] Starting number (inclusive) to iterate
 -- @param stop [number] Stopping number (inclusive) to iterate to
@@ -611,13 +609,12 @@ end
 function num_stream(start, stop, step)
 	if step ~= nil then
 		if Type.NUMBER(step) == 0 then
-			Error.ILLEGAL_ARGUMENT(aura_env.id, "Number stream step must be non-zero") end
-	else step = 1 end
-	-- Seemingly decent way to check for valid range params
-	if (Type.NUMBER(start) - Type.NUMBER(stop)) / step > 0 then
-		Error.ILLEGAL_ARGUMENT(aura_env.id, "Number stream does not terminate: start=" ..
-				tostring(start) .. ", stop=" .. tostring(stop) .. ", step=" .. tostring(step))
-	end
+			Error.ILLEGAL_ARGUMENT(ADDON_NAME, "Number stream step must be non-zero.") end
+		-- Check for infinite loop scenarios, in both increasing/decreasing contexts
+		if (Type.NUMBER(start) - Type.NUMBER(stop)) / step > 0 then
+			Error.ILLEGAL_ARGUMENT(ADDON_NAME, "Number stream does not terminate: [", start, stop, step, "]") end
+	else if start < stop then step = 1 else step = -1 end
+
 	return function() -- Simple iterator function
 		if start > stop then return nil end
 		local v = start
