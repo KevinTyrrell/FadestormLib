@@ -40,6 +40,7 @@ setfenv(1, env) -- Switch environment to FSL
 -- Imported standard library functions
 local upper, lower, format = string.upper, string.lower, string.format
 local concat, insert = table.concat, table.insert
+local next, setmetatable, type, pairs, ipairs = next, setmetatable, type, pairs, ipairs
 
 -- Utility functions
 local function SENTINEL() end -- Unique pointer
@@ -445,6 +446,8 @@ end
 --[[
 -- Filters an iterable stream, iterating over a designated subset of elements
 --
+-- This is an intermediate operation. Elements are not processed until stream termination
+--
 -- @param iterable [table][function] Stream in which to iterate
 -- @param callback [function] Callback filter function
 -- @return [function] Iterator
@@ -465,6 +468,8 @@ end
 --[[
 -- Maps an iterable stream, translating elements into different elements
 --
+-- This is an intermediate operation. Elements are not processed until stream termination
+--
 -- @param iterable [table][function] Stream in which to iterate
 -- @param callback [function] Callback mapping function
 -- @return [function] Iterator
@@ -481,51 +486,7 @@ function map(iterable, callback)
 end
 
 
---[[
--- Merges two iterable streams together
---
--- The resulting combined stream will have the same
--- number of elements as the largest of the two streams.
--- Streams of mismatched sizes can be merged but will partially yield
--- nil for the callback key/value parameters of the smaller stream.
---
--- @param iter1 [table][function] Stream in which to iterate
--- @param iter2 [table][function] Stream in which to iterate
--- @param callback [function] Callback mapping function: (k1,v1,k2,v2) --> (key,value)
--- @return [function] Iterator
-]]--
-function merge(iter1, iter2, callback)
-	Type.FUNCTION(callback)
-	local i1 = stream(iter1)
-	local i2 = stream(iter2)
-	local iterator, k1, v1, k2, v2
-
-	local function yield_left()
-		k1, v1 = i1(iter1, k1)
-		return k1 end
-	local function yield_right()
-		k2, v2 = i2(iter2, k2)
-		return k2 end
-	-- Pull elements from both streams, or switch to just one
-	iterator = function()
-		k1, v1 = i1(iter1, k1)
-		k2, v2 = i2(iter2, k2)
-		if k1 ~= nil and k2 == nil then
-			iterator = yield_left
-		elseif k2 ~= nil and k1 == nil then
-			iterator = yield_right
-			return k2 -- k1 is nil, return k2 so iteration continues
-		end
-		return k1
-	end
-
-	return function()
-		if iterator() then -- Callback only if another element exists
-			return callback(k1, v1, k2, v2) end
-	end
-end
-
-
+-- TODO: Evaluate
 -- Helper function for iterating through streams
 local function explore(iterable)
 	local iterator = stream(iterable)
@@ -539,6 +500,8 @@ end
 
 --[[
 -- Creates an additional dimension of the stream, then flattens it into one stream
+--
+-- This is an intermediate operation. Elements are not processed until stream termination
 --
 -- @param [table][function] Stream in which to iterate
 -- @param [function] Callback function which defines a new stream dimension per element.
@@ -577,6 +540,8 @@ end
 --[[
 -- Peeks an iterable stream, viewing each element
 --
+-- This is an intermediate operation. Elements are not processed until stream termination
+--
 -- @param iterable [table][function] Stream in which to iterate
 -- @param callback [function] Callback peeking function
 -- @return [function] Iterator
@@ -584,13 +549,47 @@ end
 function peek(iterable, callback)
 	Type.FUNCTION(callback)
 	local iterator = stream(iterable)
-	local key -- Iterator key parameter cannot be trusted due to key re-mappings
+	local key, value -- Iterator key parameter cannot be trusted due to key re-mappings
 	return function()
-		local value
 		key, value = iterator(iterable, key)
 		if key ~= nil then
 			callback(key, value)
 			return key, value
+		end
+	end
+end
+
+
+local function DEFAULT_COMPARING(_, value) return value end -- Default functionality for determining uniqueness
+
+
+--[[
+-- Streams over only unique elements of a stream
+--
+-- This is an intermediate operation. Elements are not processed until stream termination
+--
+-- By default, determines uniqueness of a key/value pair specifically by value.
+--
+-- @param iterable [table][function] Stream in which to iterate
+-- @param [comparing] [function] Optional. Returns a value determining the key/value pair's uniqueness
+--		@param [K] Key of the key/value pair
+--		@param [V] Value of the key/value pair
+--		@return [?] Metric determining the key/value pair's uniqueness
+]]--
+function unique(iterable, comparing)
+	comparing = comparing == nil and DEFAULT_COMPARING or Type.FUNCTION(comparing) -- Default to comparing by value
+	local iterator = stream(iterable)
+	local key, value
+	local set = setmetatable({ }, { __mode = "k" }) -- weak table, as a precaution
+	return function()
+		while true do
+			key, value = iterator(iterable, key)
+			if key == nil then break end
+			local uniqueness = Type.non_nil(comparing(key, value))
+			if set[uniqueness] == nil then -- Never seen this element before
+				set[uniqueness] = true -- Mark element as seen
+				return key, value
+			end
 		end
 	end
 end
@@ -635,11 +634,10 @@ local function DEFAULT_GROUPING_DOWNSTREAM(_, v, a) insert(Type.TABLE(a), Type.n
 --[[
 -- Groups, accumulates, and collects a stream based on a classifier
 --
--- This is a terminating stream operation.
--- The stream is closed and no further stream operations are applicable.
+-- This is a terminating operation. All elements in the stream will be processed
 --
--- Accumulator and Downstream callbacks are optional.
--- Default functionality places groups into tables and inserts appends elements.
+-- `accumulator` and `downstream` callbacks are optional.
+-- Default functionality places groups into tables and appends elements.
 --
 -- @param iterable [table][function] Stream in which to iterate
 --
@@ -682,14 +680,11 @@ end
 
 
 --[[
--- Collects an iterator stream into a table
+-- Collects a stream into a table
 --
--- Collect is a terminating stream operation.
--- The stream is closed and no further stream operations are applicable.
--- The resulting table can be used for additional operations, however
--- doing so would be inefficient due to table overhead; use 'peek' instead.
+-- This is a terminating operation. All elements in the stream will be processed
 --
--- This function doubles as a 'unique' stream call, eliminating duplicates.
+-- Collecting a stream with duplicate keys will yield undefined behavior
 --
 -- @param iterable [table][function] Stream in which to iterate
 -- @return [table] Elements of the stream
@@ -710,8 +705,7 @@ end
 --[[
 -- Iterates through elements of a stream
 --
--- For-each is a terminating stream operation.
--- The stream is closed and no further stream operations are applicable.
+-- This is a terminating operation. All elements in the stream will be processed
 --
 -- @param iterable [table][function] Stream in which to iterate
 -- @param callback [function] Callback for-each function
@@ -729,13 +723,15 @@ end
 
 
 --[[
--- Sorts the elements of the stream
+-- Sorts and collects the elements of a stream
 --
--- Sort is a terminating stream operation.
--- The stream is closed and no further stream operations are applicable.
+-- TODO: Convert this into an intermediate operation
+-- TODO: Sorted should utilize insertion sort
+-- TODO: If quicksort is to be used, the user can collect and table.sort
+--
+-- This is a terminating operation. All elements in the stream will be processed
 ]]--
-function sorted(iterable, comparator, callback)
-	Type.FUNCTION(callback)
+function sorted(iterable, comparator)
 	local t = collect(iterable)
 	Table.sort(t, Type.FUNCTION(comparator))
 	return t
