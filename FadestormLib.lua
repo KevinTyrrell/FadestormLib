@@ -39,7 +39,7 @@ setfenv(1, env) -- Switch environment to FSL
 
 -- Imported standard library functions
 local upper, lower, format = string.upper, string.lower, string.format
-local concat = table.concat
+local concat, insert = table.concat, table.insert
 
 -- Utility functions
 local function SENTINEL() end -- Unique pointer
@@ -624,6 +624,60 @@ function num_stream(start, stop, step)
 		start = start + step
 		return v, v
 	end
+end
+
+
+-- Default grouping parameters, load into table and append elements
+local function DEFAULT_GROUPING_ACCUMULATOR() return { } end
+local function DEFAULT_GROUPING_DOWNSTREAM(_, v, a) insert(Type.TABLE(a), Type.non_nil(v)) return a end
+
+
+--[[
+-- Groups, accumulates, and collects a stream based on a classifier
+--
+-- This is a terminating stream operation.
+-- The stream is closed and no further stream operations are applicable.
+--
+-- Accumulator and Downstream callbacks are optional.
+-- Default functionality places groups into tables and inserts appends elements.
+--
+-- @param iterable [table][function] Stream in which to iterate
+--
+-- @param classifier [function] Maps key/value pairs into groups
+--		@param key [K] Key of the key/value pair currently being streamed
+--		@param value [V] Value of the key/value pair currently being streamed
+--		@return [C] Grouping key in which the key/value pair will be accumulated
+--
+-- @param [accumulator] [function] Creates a new accumulator for a group
+--		@return [A] Accumulator in which is assigned to each new classifier group
+--
+-- @param [downstream] [function] Adds key/value pairs into the accumulator
+--		@param key [K] Key of the key/value pair currently being streamed
+--		@param value [V] Value of the key/value pair currently being streamed
+-- 		@param [A] Accumulator in which the key/value pair should be acccumulated into
+--		@return [A] Mutated accumulator or new accumulator after accumulation
+--
+-- @return [table] Map[C, A] Classifiers -> Accumulators
+]]--
+function grouping(iterable, classifier, accumulator, downstream)
+	accumulator = accumulator == nil and DEFAULT_GROUPING_ACCUMULATOR or Type.FUNCTION(accumulator)
+	downstream = downstream == nil and DEFAULT_GROUPING_DOWNSTREAM or Type.FUNCTION(downstream)
+	Type.FUNCTION(classifier)
+
+	local iterator = stream(iterable)
+	local groups = { }
+	local key, value
+	while true do
+		key, value = iterator(iterable, key)
+		if key == nil then break end
+		local cls = Type.non_nil(classifier(key, value))
+		local acc = groups[cls]
+		if acc == nil then -- New classifier, request new accumulator
+			acc = Type.non_nil(accumulator()) end
+		-- Accumulate the pair and request updated accumulator
+		groups[cls] = Type.non_nil(downstream(key, value, acc))
+	end
+	return groups
 end
 
 
