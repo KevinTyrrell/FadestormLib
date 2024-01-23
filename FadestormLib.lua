@@ -499,18 +499,18 @@ end
 
 
 --[[
--- Creates an additional dimension of the stream, then flattens it into one stream
+-- Maps each element into a new stream, then flattens the streams into a single stream
 --
 -- This is an intermediate operation. Elements are not processed until stream termination
 --
 -- @param [table][function] Stream in which to iterate
--- @param [function] Callback function which defines a new stream dimension per element.
-				The callback should invoke a new stream, per element of the original stream.
-				The returned value should be a new stream. See @usage below for an example.
-				@param key [?] Key of the key/value pair currently being streamed
-				@param value [?] Value of the key/value pair currently being streamed
-				@return [table][function] Stream
--- @return [function] Stream
+-- @param [function] Callback function which defines a new stream dimension per element
+--		The callback should invoke a new stream, per element of the original stream.
+--		The returned value should be a new stream. See @usage below for an example.
+--		@param key [K] Key of the key/value pair
+--		@param value [V] Value of the key/value
+--		@return [table][function] Stream mapped from the key/value pair
+-- @return [function] Iterator
 --
 -- @usage
 -- local function callback(key, value) -- e.g. `value` is a table
@@ -568,7 +568,8 @@ local function DEFAULT_COMPARING(_, value) return value end -- Default functiona
 --
 -- This is an intermediate operation. Elements are not processed until stream termination
 --
--- By default, determines uniqueness of a key/value pair specifically by value.
+-- By default, determines uniqueness of a key/value pair only by value.
+-- To override this functionality, provide callback function `comparing`.
 --
 -- @param iterable [table][function] Stream in which to iterate
 -- @param [comparing] [function] Optional. Returns a value determining the key/value pair's uniqueness
@@ -646,10 +647,10 @@ local function DEFAULT_GROUPING_DOWNSTREAM(_, v, a) insert(Type.TABLE(a), Type.n
 --		@param value [V] Value of the key/value pair currently being streamed
 --		@return [C] Grouping key in which the key/value pair will be accumulated
 --
--- @param [accumulator] [function] Creates a new accumulator for a group
+-- @param [accumulator] [function] Optional. Creates a new accumulator for a group
 --		@return [A] Accumulator in which is assigned to each new classifier group
 --
--- @param [downstream] [function] Adds key/value pairs into the accumulator
+-- @param [downstream] [function] Optional. Adds key/value pairs into the accumulator
 --		@param key [K] Key of the key/value pair currently being streamed
 --		@param value [V] Value of the key/value pair currently being streamed
 -- 		@param [A] Accumulator in which the key/value pair should be acccumulated into
