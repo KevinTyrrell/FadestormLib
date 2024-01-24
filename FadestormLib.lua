@@ -15,27 +15,34 @@
 --    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ]]--
 
--- LibStub library library initialization
-local ADDON_NAME = "FadestormLib"
-local MAJOR, MINOR = ADDON_NAME .. "-7.0", 1
-if not LibStub then return end
-local FSL = LibStub:NewLibrary(MAJOR, MINOR)
-if not FSL then return end -- Newer or same version is already loaded
-local env = setmetatable({ _G = _G },
+local MODULE_NAME = "FadestormLib"
+--[[ __VERSION_MARKER__ ]]--
+local VERSION = { major = 7, minor = 1, patch = 0, build_date = "2024-01-24" }
+
+
+-- Core module table
+local FSL = (function()
+	if IsAddOnLoaded and IsAddOnLoaded(...) then -- World of Warcraft-specific loading
+		return LibStub and LibStub:NewLibrary(MODULE_NAME .. "-" .. VERSION.major, VERSION.minor) or nil
+	elseif game and workspace and game:GetService("Players") then -- Roblox-specific loading
+		return { }
+	elseif os and io and package then -- Standalone-specific loading
+		return { }
+	end
+end)() if FSL == nil then return end -- Terminate module if loading is unsuitable
+
+setfenv(1, setmetatable({ _G = _G }, -- Setup environment
 		{
 			__newindex = FSL,
 			__index = (function()
-				local _G = _G
+				local _G = _G  -- Maintain refernce to global namespace
 				return function(_, key)
-					local v = FSL[key] -- Check FSL table first
-					if v == nil then -- Check global table second
-						v = _G[key] end
-					return v
-				end
+					local v = FSL[key] -- Prioritize FSL table for lookups
+					if v == nil then v = _G[key] end -- Global namespace
+					return v end
 			end)(),
 			__metatable = false
-		})
-setfenv(1, env) -- Switch environment to FSL
+		}))
 
 -- Imported standard library functions
 local upper, lower, format = string.upper, string.lower, string.format
@@ -58,7 +65,7 @@ Error = { TYPE_MISMATCH = SENTINEL, UNSUPPORTED_OPERATION = SENTINEL }
 ]]--
 local init_read_only_mt = (function()
 	local function read_only_error()
-		Error.UNSUPPORTED_OPERATION(ADDON_NAME, "Ready-only table cannot be modified.") end
+		Error.UNSUPPORTED_OPERATION(MODULE_NAME, "Ready-only table cannot be modified.") end
 	return function(meta_methods)
 		local mt = {
 			__newindex = read_only_error,
@@ -87,11 +94,10 @@ Table = (function()
 		-- '__metatable', '__index', and '__newindex' meta-methods are ignored.
 		--
 		-- @param private [table] Map of fields
-		-- @param meta_methods [table] (optional) meta_methods to be included into the table
+		-- @param [meta_methods] [table] Optional. Meta_methods to be included into the table
 		-- @return [table] Read-only variant of the private table
 		]]--
 		read_only = function(private, meta_methods)
-
 			local mt = init_read_only_mt({ __index = Type.TABLE(private) })
 			if meta_methods ~= nil then -- User wants additional meta-methods included
 				for k, v in pairs(Type.TABLE(meta_methods)) do
@@ -196,6 +202,47 @@ end)()
 
 
 --[[
+-- Version information
+--
+-- @field version [string] MAJOR.MINOR.PATCH
+-- @field major [number] Backwards-incompatible/milestone change number
+-- @field minor [number] Backward-compatible enhancements change number
+-- @field patch [number] Bug fixes/minor improvements change number
+-- @field build_date [string] YYYY-MM-DD date in which commit was pushed
+-- @field author [string] Repository author
+-- @field license [string] Repository license
+-- @field repository [string] Repository URL
+-- @field cmp [function] Compares this version table with another version table
+--		@param version [table] Version table in which to compare against
+--		@return [number] Negative/positive integer if this version is behind/ahead, otherwise 0
+-- @field __call [function] Equivalent to `cmp`
+-- @field __tostring [string] Equivalent to `version`
+]]--
+FSL.VERSION = (function()
+	local function compare_versions(X, Y)
+		return (X.MAJOR ~= Y.MAJOR and X.MAJOR - Y.MAJOR) or
+				(X.MINOR ~= Y.MINOR and X.MINOR - Y.MINOR) or (X.PATCH - Y.PATCH)
+	end
+	local function check_version_tbl(v)
+		Type.TABLE(v); Type.NUMBER(v.MAJOR); Type.NUMBER(v.MINOR); Type.NUMBER(v.PATCH) return v end
+
+	for k, v in pairs({
+		author = "Kevin Tyrrell",
+		repository = "github.com/KevinTyrrell/FadestormLib",
+		license = "MIT",
+		version = format("%d.%d.%d", VERSION.MAJOR, VERSION.minor, VERSION.patch),
+		cmp = function(version)
+			return compare_versions(VERSION, check_version_tbl(version)) end
+	}) do VERSION[k] = v end
+
+	return Table.read_only(VERSION, {
+		__tostring = function(tbl) return tbl.version end,
+		__call = function(_, ...) return compare_versions(VERSION, check_version_tbl(...)) end
+	})
+end)()
+
+
+--[[
 -- Defines an enumeration
 --
 -- Enum Class Members
@@ -281,7 +328,7 @@ function Enum(values, callback, meta_methods)
 
 	function cls_members.assert_instance(tbl) -- Enum type-checking
 		if ro_to_reserved[Type.TABLE(tbl)] == nil then
-			Error.TYPE_MISMATCH(ADDON_NAME, "Table parameter is not an instance of the enum.") end
+			Error.TYPE_MISMATCH(MODULE_NAME, "Table parameter is not an instance of the enum.") end
 		return tbl
 	end
 
@@ -320,7 +367,7 @@ Type = (function()
 				function members.match(value) return members.type == type(value) end
 			end, {
 				__call = function(tbl, value)
-					if tbl.type ~= type(value) then Error.TYPE_MISMATCH(ADDON_NAME,
+					if tbl.type ~= type(value) then Error.TYPE_MISMATCH(MODULE_NAME,
 							"Received: <", type(value),  "> Expected: <", tbl.type, ">") end
 					return value
 				end
@@ -336,7 +383,7 @@ Type = (function()
     ]]--
 	function members.non_nil(x)
 		if x == nil then
-			Error.NIL_POINTER(ADDON_NAME, "Required non-nil argument was nil.") end
+			Error.NIL_POINTER(MODULE_NAME, "Required non-nil argument was nil.") end
 		return x
 	end
 
@@ -612,10 +659,10 @@ end
 function num_stream(start, stop, step)
 	if step ~= nil then
 		if Type.NUMBER(step) == 0 then
-			Error.ILLEGAL_ARGUMENT(ADDON_NAME, "Number stream step must be non-zero.") end
+			Error.ILLEGAL_ARGUMENT(MODULE_NAME, "Number stream step must be non-zero.") end
 		-- Check for infinite loop scenarios, in both increasing/decreasing contexts
 		if (Type.NUMBER(start) - Type.NUMBER(stop)) / step > 0 then
-			Error.ILLEGAL_ARGUMENT(ADDON_NAME, "Number stream does not terminate: [", start, stop, step, "]") end
+			Error.ILLEGAL_ARGUMENT(MODULE_NAME, "Number stream does not terminate: [", start, stop, step, "]") end
 	elseif start < stop then step = 1 else step = -1 end
 
 	return function() -- Simple iterator function
@@ -762,3 +809,5 @@ String = Table.read_only({
 	end
 })
 
+
+return Table.read_only(FSL) -- Allow `require` to load module
