@@ -15,9 +15,10 @@
 --    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ]]--
 
+
 local MODULE_NAME = "FadestormLib"
 --[[ __VERSION_MARKER__ ]]--
-local VERSION = { major = 7, minor = 1, patch = 0, build_date = "2024-01-24" }
+local VERSION = { major = 7, minor = 1, patch = 0, build_date = 2024-01-24 }
 
 
 -- Core module table
