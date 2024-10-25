@@ -101,6 +101,12 @@ if [ -d "$repo_path" ]; then
 				#git commit --allow-empty -m "Release v$version"
 				# git tag -a "release-v$version" -m "Release v$version" --sign && git tag -a "release" -m "Release" --sign
 				# git push origin --tags
+				
+				# Create a zipped folder of other items
+				#zip -r special_folder.zip folder_to_zip
+
+				# Attach the zipped folder to the release
+				#gh release upload v2.0.0 special_folder.zip
 			fi
 						
 			echo "done."

@@ -1,18 +1,19 @@
 --[[
---    Copyright (C) 2024 Fadestorm-Faerlina (Discord: hatefiend)
+--	Copyright (C) 2024 Kevin Tyrrell
+--	FadestormLib is small but powerful library for the Lua 5.1+ programming language.
 --
---    This program is free software: you can redistribute it and/or modify
---    it under the terms of the GNU General Public License as published by
---    the Free Software Foundation, either version 3 of the License, or
---    (at your option) any later version.
+--	This program is free software: you can redistribute it and/or modify
+--  it under the terms of the GNU General Public License as published by
+--  the Free Software Foundation, either version 3 of the License, or
+--  (at your option) any later version.
 --
---    This program is distributed in the hope that it will be useful,
---    but WITHOUT ANY WARRANTY; without even the implied warranty of
---    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
---    GNU General Public License for more details.
+--  This program is distributed in the hope that it will be useful,
+--  but WITHOUT ANY WARRANTY; without even the implied warranty of
+--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+--  GNU General Public License for more details.
 --
---    You should have received a copy of the GNU General Public License
---    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+--  You should have received a copy of the GNU General Public License
+--  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ]]--
 
 
@@ -84,19 +85,17 @@ end)()
 Table = (function()
 	local self = {
 		--[[
-		-- Constructs a read-only view into a private table
+		-- Constructs a read-only view into a table
 		--
-		-- Read-only tables cannot be modified.
-		-- An error will be thrown upon __newindex being called.
-		-- Read-only tables do not support the length operator '#' (Lua 5.1 limitation)
-		-- Calling 'getmetatable(...)' will retrieve the length of the underlying table.
+		--  Read-only tables cannot be modified. 
+		-- Mutating the resulting table will result in `Error.UNSUPPORTED_OPERATION`.
+		-- `getmetatable` yields a `function` which returns the length of the underlying table (equivalent to `#private`).
+		-- Calling `#` on the read only table is unsupported due to `__len` meta method not being present in Lua 5.1.
+		-- Supplied '__metatable', '__index', and '__newindex' meta-methods in `meta_table` are ignored.
 		--
-		-- Meta-methods may be provided in order to further customize the read-only table.
-		-- '__metatable', '__index', and '__newindex' meta-methods are ignored.
-		--
-		-- @param private [table] Map of fields
-		-- @param [meta_methods] [table] Optional. Meta_methods to be included into the table
-		-- @return [table] Read-only variant of the private table
+		-- @param private [table] Internal fields of the table
+		-- @param [meta_methods] [table] (Optional) Meta methods to be included into the resulting table
+		-- @return [table] Read-only wrapper of specified table
 		]]--
 		read_only = function(private, meta_methods)
 			local mt = init_read_only_mt({ __index = Type.TABLE(private) })
@@ -109,11 +108,11 @@ Table = (function()
 		end,
 
 		--[[
-		-- Associates the key with the default value, if said key has no existing pairing, then returns the current value
+		-- Fetches the key’s value, or sets and returns a default value if absent
 		--
 		-- @param tbl [table] Table to query
 		-- @param key [?] Key of the pairing
-		-- @param default_value [?] Value to be paired if the key is not present
+		-- @param default_value [?] Paired value if the key is absent
 		-- @return [?] Resulting value of the key-value pairing
 		]]--
 		put_default = function(tbl, key, default_value)
@@ -125,11 +124,11 @@ Table = (function()
 		end,
 
 		--[[
-		-- Associates the key with a computed value, if said key has no existing pairing, then returns the current value
+		-- Fetches the key’s value, or sets and returns a computed value if absent
 		--
 		-- @param tbl [table] Table to query
 		-- @param key [?] Key of the pairing
-		-- @param computer [function] Value to be paired if the key is not present
+		-- @param computer [function] signature: [?] callback([?])
 		-- @return [?] Resulting value of the key-value pairing
 		]]--
 		put_compute = function(tbl, key, computer)
@@ -144,10 +143,10 @@ Table = (function()
 		--[[
 		-- Constructs a set of specified values
 		--
-		-- Each value of the set is associated with boolean 'true'
+		-- Each key of the set is associated with `true`.
 		--
-		-- @param [varargs] Values of the set
-		-- @return [table] Set of values
+		-- @param [...] Elements of the resulting set
+		-- @return [table] Set of specified values
 		]]--
 		set = function(...)
 			local t = { }
@@ -157,12 +156,13 @@ Table = (function()
 		end,
 
 		--[[
-		-- Sorts a table, using a custom comparator
+		-- Sorts a table using the specified comparator
 		--
-		-- Implementation uses a 2-partition Quicksort
+		-- Implementation uses two-part recursive Quicksort. This sort is not stable.
+		-- Runtime should be similar to Lua's table.sort: https://www.lua.org/manual/5.1/manual.html#pdf-table.sort
 		--
 		-- @param tbl [table] Table to be sorted
-		-- @param comparator [function] Compares two elements, returning domain [-1, 1]
+		-- @param comparator [function] signature: [Number] callback([Any], [Any])
 		]]--
 		sort = (function()
 			local function swap(tbl, i, j) -- Swaps two indexes of a table
