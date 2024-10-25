@@ -144,13 +144,14 @@ Table = (function()
 		-- Constructs a set of specified values
 		--
 		-- Each key of the set is associated with `true`.
+		-- nil elements are ignored from the set.
 		--
 		-- @param [...] Elements of the resulting set
 		-- @return [table] Set of specified values
 		]]--
 		set = function(...)
 			local t = { }
-			for _, e in ipairs({ ... }) do
+			for _, e in pairs({ ... }) do
 				t[e] = true end
 			return t
 		end,
